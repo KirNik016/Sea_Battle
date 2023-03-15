@@ -1,0 +1,262 @@
+# ПРОВЕРЯЮЩИЕ
+# Пожалуйста, прочитайте этот комментарий
+# Программа может генерировать и располагать все виды кораблей (1, 2 и 3-х клеточные)
+# Однако зависает при попытках сгенерировать весь заданный флот.
+# Для компьютерного противника я оставил флот из четырех одноместных кораблей
+# Для игрока - флот из одной "единички", одной "двойки" и одной "тройки" (для демонстрации)
+# Также, извините за г*вно-код, мне очень стыдно - под конец выполнения задания я спешил,
+# поэтому некоторые вещи сделать нормально не успел =( Обещаю исправиться!
+import random
+random.seed()
+
+class ComputerEnemy:
+    cordX = []
+    cordY = []
+    def generate_hit(self):
+        x = random.randint(1, 6)
+        x = x * 2
+        while(self.is_exist_position(x, 'X')):
+            x = random.randint(1, 6) * 2
+        self.cordX.append(x)
+
+        y = random.randint(1, 6)
+        while (self.is_exist_position(y, 'Y')):
+            y = random.randint(1, 6)
+        self.cordY.append(y)
+        print(int(x / 2), y)
+        return [x, y]
+
+    def is_exist_position(self, pos, axis):
+        if axis == 'X':
+            if pos in self.cordX:
+                return True
+            return False
+        elif axis == 'Y':
+            if pos in self.cordY:
+                return True
+            return False
+
+class Field:
+    ROW = 14
+    COLUMN = 7
+    table = []
+    ships = None
+    is_hide = None
+
+    def __init__(self, is_hide = False):
+        self.table = [[' '] * self.ROW for i in range(self.COLUMN)]
+        for i in range(self.COLUMN):
+            for j in range(self.ROW):
+                if(i == 0 and j % 2 == 0):
+                    self.table[i][j] = int(j / 2)
+                    continue
+                if(j == 0):
+                    self.table[i][j] = i
+                elif(j % 2 == 0):
+                    self.table[i][j] = '0'
+                else:
+                    self.table[i][j] = '|'
+        self.table[0][0] = ' '
+        self.is_hide = is_hide
+    def show_table(self):
+        for i in range(len(self.table)):
+            print(*self.table[i])
+
+    def finding(self, dot_counter):
+        cord_listX = list()
+        cord_listY = list()
+        iterat_counter = 0
+
+        while(True):
+            x = random.randint(1, 6)
+            y = random.randint(1, 6)
+            x = x * 2
+
+            orig_x = x
+            orig_y = y
+            control = True
+            axis = 'X'
+
+            cycle = 0
+            while cycle < dot_counter:
+                control = self.bypass(x, y)
+                if(control):
+                    cord_listX.append(x)
+                    cord_listY.append(y)
+
+                    if len(cord_listX) == dot_counter:
+                        return [cord_listX, cord_listY]
+
+                    if(axis == 'X'):
+                        x += 2
+                    else:
+                        y += 1
+                else:
+                    if(len(cord_listX) > 0):
+                        cord_listX.clear()
+                    if(len(cord_listY) > 0):
+                        cord_listY.clear()
+                    x = orig_x
+                    y = orig_y
+                    if (axis == 'X'):
+                        axis = 'Y'
+                        cycle = 0
+                    else:
+                       break
+            iterat_counter += 1
+            if(iterat_counter > 100):
+                print("Не удалось сгенерировать поле")
+                exit()
+
+    def bypass(self, posX, posY):
+        for i in range(posY - 1, posY + 2):
+            for j in range(posX - 2, posX + 3, 2):
+                if i > 6 or j > 12 or i < 1 or j < 2 or self.table[i][j] == '*':
+                    return False
+        return True
+
+    def find_place(self):
+        while True:
+            x = random.randint(1, 6)
+            y = random.randint(1, 6)
+            x = x * 2
+            control = self.bypass(x, y)
+            if control:
+                return [x, y]
+
+    def change_mark(self, field, cords, kind = 'Place'):
+        cords = list(map(int, cords))
+        if(kind == 'Hit'):
+            field[cords[1]][cords[0]] = 'X'
+        elif(kind == 'Miss'):
+            field[cords[1]][cords[0]] = 'T'
+        elif(not self.is_hide):
+            field[cords[1]][cords[0]] = '*'
+
+    def set_long_mark(self, field, cords):
+        cordX = cords[0]
+        cordY = cords[1]
+        for i in range(len(cordX)):
+            field[cordY[i]][cordX[i]] = '*'
+
+    def ship_placing(self, ship):
+        if ship.ship_type == 'Small':
+            coords = self.find_place()
+            ship.set_coords(coords)
+            self.change_mark(self.table, coords)
+            if self.ships == None:
+                self.ships = list()
+            self.ships.append(ship)
+        else:
+            coords = self.finding(ship.life)
+            ship.set_coords(coords)
+            self.set_long_mark(self.table, coords)
+            if self.ships == None:
+                self.ships = list()
+            self.ships.append(ship)
+
+    def take_hit(self, pos):
+       for ship in self.ships:
+           if ship.is_hit(pos[0], pos[1]):
+               print("Подстрелил!")
+               self.change_mark(self.table, pos, "Hit")
+               break
+       else:
+           print("Мимо!")
+       self.change_mark(self.table, pos, "Miss")
+
+    def is_loose(self):
+        for ship in self.ships:
+            if ship.is_alive:
+                return False
+        return True
+
+class Ship:
+    posX = None
+    posY = None
+    life = None
+    kind = None
+
+    def __init__(self, life):
+        self.life = life
+
+        if(self.life == 3):
+            self.kind = 'Big'
+        elif(self.life == 2):
+            self.kind = 'Middle'
+        else:
+            self.kind = 'Small'
+
+        if(self.posX == None):
+            self.posX = list()
+        self.posX.append(0)
+        if (self.posY == None):
+            self.posY = list()
+        self.posY.append(0)
+
+    def is_hit(self, coordX, coordY):
+        if(coordX in self.posX and coordY in self.posY and self.life > 0):
+            self.life -= 1
+            return True
+        return False
+
+    @property
+    def is_alive(self):
+        return self.life > 0
+
+    @property
+    def ship_type(self):
+        return self.kind
+
+    def set_coords(self, pos):
+        locate = pos.copy()
+        self.posX[0] = locate[0]
+        self.posY[0] = locate[1]
+
+
+desk = Field()
+my_fleet = [Ship(3), Ship(2), Ship(1)]
+
+#my_fleet = [Ship(1) for i in range(4)]
+#for ship in fleet:
+#    desk.ship_placing(ship)
+
+for ship in my_fleet:
+    desk.ship_placing(ship)
+desk.show_table()
+
+
+enemy = ComputerEnemy()
+enemy_desk = Field(True)
+
+enemy_ships = [Ship(1) for i in range(4)]
+for ship in enemy_ships:
+    enemy_desk.ship_placing(ship)
+
+print("Здравствуйте! Добро пожаловать в Морской Бой. ")
+print("Вводите координаты для выстрела по полю противника через пробел.")
+print("Первое число -  ось Х, второе - ось Y")
+while (True):
+    try:
+       position = input("Введите координаты: ").split()
+       position = list(map(int, position))
+
+       if(position[0] > 6 or position[0] < 1 or position[1] > 6 or position[1] < 1):
+           raise ValueError("Такой ячейки не существует")
+    except ValueError:
+        print("Некорректные данные")
+        break
+    position[0] *= 2
+
+    enemy_desk.take_hit(position)
+    enemy_desk.show_table()
+    if enemy_desk.is_loose():
+        print("Вы победили!")
+        break
+    print("Ход противника: ")
+    position = enemy.generate_hit()
+    desk.take_hit(position)
+    desk.show_table()
+    if desk.is_loose():
+        print("Вы проиграли!=(")
+        break
